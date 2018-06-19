@@ -60,26 +60,34 @@ public abstract class QueueSearch {
 		// initialize the frontier using the initial state of the problem
 		Node root = nodeExpander.createRootNode(problem.getInitialState());
 		addToFrontier(root);
-		if (earlyGoalTest && SearchUtils.isGoalState(problem, root))
+		if (earlyGoalTest && SearchUtils.isGoalState(problem, root)) {
+			EightPuzzleTree.setGoalState(root,0);
 			return getSolution(root);
+		}
 
 		while (!isFrontierEmpty() && !CancelableThread.currIsCanceled()) {
 			// choose a leaf node and remove it from the frontier
 			Node nodeToExpand = removeFromFrontier();
+			EightPuzzleTree.numberOfExpandedNodes++;
+			EightPuzzleTree.setChosenNodeFromFrontier(nodeToExpand,nodeToExpand.getDepth());
 			// Only need to check the nodeToExpand if have not already
 			// checked before adding to the frontier
-			if (!earlyGoalTest && SearchUtils.isGoalState(problem, nodeToExpand))
+			if (!earlyGoalTest && SearchUtils.isGoalState(problem, nodeToExpand)) {
 				// if the node contains a goal state then return the
 				// corresponding solution
+				EightPuzzleTree.numberOfExpandedNodes--;
+				EightPuzzleTree.setGoalState(nodeToExpand, nodeToExpand.getDepth());
 				return getSolution(nodeToExpand);
-
+			}
 			// expand the chosen node, adding the resulting nodes to the
 			// frontier
 			for (Node successor : nodeExpander.expand(nodeToExpand, problem)) {
 				successor.setDepth(nodeToExpand.getDepth() + 1);
 				addToFrontier(successor);
-				if (earlyGoalTest && SearchUtils.isGoalState(problem, successor))
+				if (earlyGoalTest && SearchUtils.isGoalState(problem, successor)) {
+					EightPuzzleTree.setGoalState(successor,successor.getDepth());
 					return getSolution(successor);
+				}
 			}
 		}
 		// if the frontier is empty then return failure

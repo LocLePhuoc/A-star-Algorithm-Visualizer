@@ -1,6 +1,7 @@
 package aima.gui.swing.framework;
 
 import Presentation.EightPuzzleApp;
+import Presentation.EightPuzzleTree;
 
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -312,6 +313,10 @@ public class AgentAppFrame extends JFrame {
 						messageLogger.clear();
 						statusLabel.setText("");
 						controller.clear();
+						EightPuzzleTree.clearTree();
+						EightPuzzleApp.mainView.setClearView(true);
+						EightPuzzleApp.mainView.removeAll();
+						EightPuzzleTree.numberOfExpandedNodes = 0;
 					} else if (source == prepareButton) {
 						err = "when preparing simulation ";
 						controller.prepare(null);
@@ -342,7 +347,10 @@ public class AgentAppFrame extends JFrame {
 						getSimulationThread().calculateMistiledHeuristic();
 						getSimulationThread().start();
 					} else if (source == drawTreeButton) {
-						EightPuzzleApp.mainView.drawTree();
+						setSimulationThread(new SimulationThread(
+								AgentAppFrame.this, controller, false));
+						getSimulationThread().drawTree();
+						getSimulationThread().start();
 					} else if (source == cancelButton) {
 						err = "when canceling simulation ";
 						SimulationThread at = getSimulationThread();
@@ -485,6 +493,10 @@ public class AgentAppFrame extends JFrame {
 		/** Returns the selected item of a specified selector. */
 		public Object getValue(String selector) {
 			return selItems.get(selectors.indexOf(selector));
+		}
+
+		public List<Object> getItems() {
+			return selItems;
 		}
 
 		/** Returns a readable representation of the selection state. */

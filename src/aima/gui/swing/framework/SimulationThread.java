@@ -2,6 +2,8 @@ package aima.gui.swing.framework;
 
 import java.awt.EventQueue;
 
+import Presentation.EightPuzzleApp;
+import Presentation.EightPuzzleTree;
 import aima.core.util.CancelableThread;
 
 /**
@@ -16,6 +18,7 @@ public class SimulationThread extends CancelableThread {
 	private boolean stepMode;
 	private boolean isCalculatingManHattanHeuristic;
 	private boolean isCalculatingMistiledHeuristic;
+	private boolean isDrawingTree;
 	
 	/** Standard constructor. */
 	public SimulationThread(AgentAppFrame frame, AgentAppController controller, boolean stepMode) {
@@ -46,6 +49,11 @@ public class SimulationThread extends CancelableThread {
 			} else if (isCalculatingMistiledHeuristic) {
 				controller.calculateMistiledHeuristic();
 				isCalculatingMistiledHeuristic = false;
+			}
+			else if (isDrawingTree) {
+				EightPuzzleApp.mainView.drawTree2();
+				isDrawingTree = false;
+				EightPuzzleTree.clearTree();
 			} else {
 				if (!stepMode)
 					controller.run(frame.getMessageLogger());
@@ -78,6 +86,10 @@ public class SimulationThread extends CancelableThread {
 
 	public void calculateMistiledHeuristic() {
 		this.isCalculatingMistiledHeuristic = true;
+	}
+
+	public void drawTree() {
+		isDrawingTree = true;
 	}
 }
 

@@ -25,6 +25,7 @@ import aima.gui.swing.framework.*;
 
 import javax.swing.*;
 import javax.swing.border.Border;
+import javax.swing.tree.TreeNode;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -55,13 +56,11 @@ public class EightPuzzleApp extends SimpleAgentApp {
 
 	public static EightPuzzleStateInfoView stateInfoView = new EightPuzzleStateInfoView();
 
+	public static boolean isUsingManhattanHeuristic;
+	public static boolean isUsingMisplacedHeuristic;
+	public static boolean isGreedyBestFirst;
+
 	static {
-		addSearchAlgorithm("Breadth First Search (Graph Search)",
-				new BreadthFirstSearch(new GraphSearch()));
-		addSearchAlgorithm("Breadth First Search (Bidirectional Search)",
-				new BreadthFirstSearch(new BidirectionalSearch()));
-		addSearchAlgorithm("Depth Limited Search (9)", new DepthLimitedSearch(9));
-		addSearchAlgorithm("Iterative Deepening Search", new IterativeDeepeningSearch());
 		addSearchAlgorithm("Greedy Best First Search (MisplacedTileHeursitic)",
 				new GreedyBestFirstSearch(new GraphSearch(), new MisplacedTilleHeuristicFunction()));
 		addSearchAlgorithm("Greedy Best First Search (ManhattanHeursitic)",
@@ -70,8 +69,6 @@ public class EightPuzzleApp extends SimpleAgentApp {
 				new AStarSearch(new GraphSearch(), new MisplacedTilleHeuristicFunction()));
 		addSearchAlgorithm("AStar Search (ManhattanHeursitic)",
 				new AStarSearch(new GraphSearch(), new ManhattanHeuristicFunction()));
-		addSearchAlgorithm("Simulated Annealing Search",
-				new SimulatedAnnealingSearch(new ManhattanHeuristicFunction()));
 	}
 
 	/** Returns an <code>EightPuzzleView</code> instance. */
@@ -124,8 +121,7 @@ public class EightPuzzleApp extends SimpleAgentApp {
 			setSelectorItems(SEARCH_SEL, (String[]) SEARCH_NAMES.toArray(new String[] {}), 0);
 			setEnvView(new EmptyEightPuzzleView());
 			this.setSplitPaneResizeWeight(0.5);
-			setSize(1000, 750);
-		}
+			setSize(1000, 750);}
 	}
 
 	/**
@@ -136,9 +132,16 @@ public class EightPuzzleApp extends SimpleAgentApp {
 	 */
 	public static class EmptyEightPuzzleView extends AgentAppEnvironmentView {
 
+		private Vector<Vector<Integer>> childCoord = new Vector<Vector<Integer>>();
+		private Vector<Vector<Integer>> parentCoord = new Vector<Vector<Integer>>();
+
+		//used for clearing the view
+		private boolean isClear;
+
 		EmptyEightPuzzleView () {
 			setLayout(null);
 			setPreferredSize(new Dimension(5000,5000));
+			isClear = false;
 		}
 
 		@Override
@@ -150,34 +153,156 @@ public class EightPuzzleApp extends SimpleAgentApp {
 		public void agentAdded(Agent agent, Environment source) {
 		}
 
+		@Override
+		public void paintComponent(Graphics g) {
+			if (isClear) {
+				childCoord.clear();
+				parentCoord.clear();
+				isClear = false;
+			} else {
+				if (childCoord.size() == 0) {
 
-		public void drawTree() {
-			for (int i = 0; i < EightPuzzleTree.tree.size(); i++) {  //depth
-				for (int j = 0; j < EightPuzzleTree.tree.get(i).size(); j++) { //nodes in a level of depth
-					System.out.println("i: " + i + ", j: " + j);
-					EightPuzzleView newView = EightPuzzleTree.tree.get(i).get(j).view;
-					add(newView);
-					newView.setSize(200,200);
-					newView.setLocation(300 * j + 100,300 * i + 100);
+				} else {
+					for (int i = 0; i < childCoord.size(); i++) {
+						int xChild = childCoord.get(i).get(0);
+						int yChild = childCoord.get(i).get(1);
+
+						int xParent = parentCoord.get(i).get(0);
+						int yParent = parentCoord.get(i).get(1);
+						g.drawLine(xChild, yChild, xParent, yParent);
+					}
 				}
 			}
+		}
+
+		public void drawTree2() {
+			Border border = BorderFactory.createLineBorder(Color.YELLOW,10);
+			Border goalStateBorder = BorderFactory.createLineBorder(Color.GREEN,10);
+
+			int orderChosenFromFrontier = 0;
+			int currentDepth = 0;
+			while (orderChosenFromFrontier <= EightPuzzleTree.numberOfExpandedNodes) {
+				int[] nodeToExpand = EightPuzzleTree.getCurrentExpandedNode(currentDepth,orderChosenFromFrontier);
+				int x = nodeToExpand[0];  //depth
+				int y = nodeToExpand[1];  //position in depth
+				EightPuzzleView newView = EightPuzzleTree.tree.get(x).get(y).view;
+				//only need to add root node
+				if (orderChosenFromFrontier == 0){
+					add(newView);
+					newView.updateView(EightPuzzleTree.tree.get(x).get(y).node.getPathCost());
+					newView.setSize(200, 200);
+					newView.setLocation(400 * y + 100, 400 * x + 100);
+				}
+				if (orderChosenFromFrontier == EightPuzzleTree.numberOfExpandedNodes) {
+					newView.setBorder(goalStateBorder);
+				} else {
+					try {
+						Thread.sleep(500);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+					newView.setBorder(border);
+				}
+
+				//draw child views
+				if (x < EightPuzzleTree.tree.size() - 1) {
+					for (int i = 0; i < EightPuzzleTree.tree.get(x + 1).size(); i++) {
+						EightPuzzleTree.EightPuzzleTreeNode childNode = EightPuzzleTree.tree.get(x + 1).get(i);
+						if (childNode.hasParent(y,x)) {
+							EightPuzzleView childView = EightPuzzleTree.tree.get(x + 1).get(i).view;
+							add(childView);
+							childView.updateView(EightPuzzleTree.tree.get(x).get(y).node.getPathCost());
+							childView.setSize(200, 200);
+							childView.setLocation(400 * i + 100, 400 * (x + 1) + 100);
+
+							int x1 = 400 * i + 200;
+							int y1 = 400 * (x + 1) + 100;
+							int x2 = 400 * y+ 200;
+							int y2 = 400 * x + 300;
+							Vector<Integer> newChildVector = new Vector<Integer>();
+							newChildVector.add(x1);
+							newChildVector.add(y1);
+							Vector<Integer> newParentVector = new Vector<Integer>();
+							newParentVector.add(x2);
+							newParentVector.add(y2);
+							childCoord.add(newChildVector);
+							parentCoord.add(newParentVector);
+							paintComponent(getGraphics());
+
+							try {
+								Thread.sleep(500);
+							} catch (InterruptedException e) {
+								e.printStackTrace();
+							}
+						}
+					}
+				}
+				orderChosenFromFrontier++;
+				if (x == currentDepth)
+					currentDepth++;
+			}
+		}
+
+		public void setClearView(boolean set) {
+			isClear = set;
+		}
+
+		public Graphics getViewGraphics() {
+			return getGraphics();
 		}
 	}
 
 	protected static class EightPuzzleView extends AgentAppEnvironmentView implements ActionListener {
 		private static final long serialVersionUID = 1L;
 		public JButton[] squareButtons;
+		JLabel upperLabel;
+		JPanel lowerPanel;
 
 		protected EightPuzzleView() {
-			setLayout(new GridLayout(3, 3));
-			Font f = new java.awt.Font(Font.SANS_SERIF, Font.PLAIN, 32);
+			setLayout(new GridBagLayout());
+			GridBagConstraints gbc  = new GridBagConstraints();
+			Border defaultBorder = BorderFactory.createLineBorder(Color.BLACK);
+			Font f = new java.awt.Font(Font.SANS_SERIF, Font.PLAIN, 30);
+
+			setBorder(defaultBorder);
+			gbc.fill = GridBagConstraints.HORIZONTAL;
+			gbc.gridx = 0;
+			gbc.gridy = 0;
+			upperLabel = new JLabel();
+			upperLabel.setHorizontalAlignment(SwingConstants.CENTER);
+			upperLabel.setFont(f);
+			add(upperLabel,gbc);
+
+			gbc.fill = GridBagConstraints.HORIZONTAL;
+			gbc.gridx = 0;
+			gbc.gridy = 1;
+			lowerPanel = new JPanel();
+			lowerPanel.setLayout(new GridLayout(3, 3));
+			add(lowerPanel,gbc);
+
+
 			squareButtons = new JButton[9];
 			for (int i = 0; i < 9; i++) {
 				JButton square = new JButton(Integer.toString(i));
 				square.setFont(f);
 				square.addActionListener(this);
 				squareButtons[i] = square;
-				add(square);
+				lowerPanel.add(square);
+			}
+		}
+
+		public void updateView(double pathCost) {
+			if (!isUsingManhattanHeuristic && !isUsingMisplacedHeuristic) {
+				remove(0);
+			} else {
+				int h = 0;
+				if (isUsingManhattanHeuristic) {
+					h = calculateManhattanHeuristic();
+				} else {
+					h = calculateMisplacedTileHeuristic();
+				}
+
+				upperLabel.setText(Double.toString(h + ((isGreedyBestFirst) ? 0 : pathCost)));
 			}
 		}
 
@@ -224,25 +349,88 @@ public class EightPuzzleApp extends SimpleAgentApp {
 		 */
 		@Override
 		public void actionPerformed(ActionEvent ae) {
-//			for (int i = 0; i < 9; i++) {
-//				if (ae.getSource() == squareButtons[i]) {
-//					EightPuzzleController contr = (EightPuzzleController) getController();
-//					XYLocation locGap = ((EightPuzzleEnvironment) env).getBoard().getLocationOf(0);
-//					if (locGap.getXCoOrdinate() == i / 3) {
-//						if (locGap.getYCoOrdinate() == i % 3 - 1)
-//							contr.executeUserAction(EightPuzzleBoard.RIGHT);
-//						else if (locGap.getYCoOrdinate() == i % 3 + 1)
-//							contr.executeUserAction(EightPuzzleBoard.LEFT);
-//					} else if (locGap.getYCoOrdinate() == i % 3) {
-//						if (locGap.getXCoOrdinate() == i / 3 - 1)
-//							contr.executeUserAction(EightPuzzleBoard.DOWN);
-//						else if (locGap.getXCoOrdinate() == i / 3 + 1)
-//							contr.executeUserAction(EightPuzzleBoard.UP);
-//					}
-//				}
-//			}
 			stateInfoView.copyState(this);
 			AgentAppFrame.rightPane.add(JSplitPane.TOP,stateInfoView);
+		}
+
+		public int calculateManhattanHeuristic() {
+			int retVal = 0;
+			int currentVal = 0;
+			for (int i = 0; i < 9 ; i++) {
+				if (!squareButtons[i].getText().equals("")) {
+					switch (Integer.parseInt(squareButtons[i].getText())) {
+						case 1:
+							currentVal = Math.abs(i / 3 - 0) + Math.abs(i % 3 - 1);
+							break;
+						case 2:
+							currentVal = Math.abs(i / 3 - 0) + Math.abs(i % 3 - 2);
+							break;
+						case 3:
+							currentVal = Math.abs(i / 3 - 1) + Math.abs(i % 3 - 0);
+							break;
+						case 4:
+							currentVal = Math.abs(i / 3 - 1) + Math.abs(i % 3 - 1);
+							break;
+						case 5:
+							currentVal = Math.abs(i / 3 - 1) + Math.abs(i % 3 - 2);
+							break;
+						case 6:
+							currentVal = Math.abs(i / 3 - 2) + Math.abs(i % 3 - 0);
+							break;
+						case 7:
+							currentVal = Math.abs(i / 3 - 2) + Math.abs(i % 3 - 1);
+							break;
+						case 8:
+							currentVal = Math.abs(i / 3 - 2) + Math.abs(i % 3 - 2);
+							break;
+					}
+				}
+				retVal += currentVal;
+			}
+			return retVal;
+		}
+
+		public int calculateMisplacedTileHeuristic() {
+			int retVal = 0;
+			for (int i = 0; i < 9; i++) {
+				if (!squareButtons[i].getText().equals("")) {
+					switch (Integer.parseInt(squareButtons[i].getText())) {
+						case 1:
+							if (!((i / 3 == 0) && (i % 3 == 1)))
+								retVal += 1;
+							break;
+						case 2:
+							if (!((i / 3 == 0) && (i % 3 == 2)))
+								retVal += 1;
+							break;
+						case 3:
+							if (!((i / 3 == 1) && (i % 3 == 0)))
+								retVal += 1;
+							break;
+						case 4:
+							if (!((i / 3 == 1) && (i % 3 == 1)))
+								retVal += 1;
+							break;
+						case 5:
+							if (!((i / 3 == 1) && (i % 3 == 2)))
+								retVal += 1;
+							break;
+						case 6:
+							if (!((i / 3 == 2) && (i % 3 == 0)))
+								retVal += 1;
+							break;
+						case 7:
+							if (!((i / 3 == 2) && (i % 3 == 1)))
+								retVal += 1;
+							break;
+						case 8:
+							if (!((i / 3 == 2) && (i % 3 == 2)))
+								retVal += 1;
+							break;
+					}
+				}
+			}
+			return retVal;
 		}
 	}
 
@@ -268,6 +456,24 @@ public class EightPuzzleApp extends SimpleAgentApp {
 		@Override
 		public void prepare(String changedSelector) {
 			AgentAppFrame.SelectionState selState = frame.getSelection();
+			List<Object> selItems = selState.getItems();
+			if (selItems.get(1).toString().contains("Misplaced")) {
+				isUsingMisplacedHeuristic = true;
+				isUsingManhattanHeuristic = false;
+			} else if (selItems.get(1).toString().contains("Manhattan")) {
+				isUsingManhattanHeuristic = true;
+				isUsingMisplacedHeuristic = false;
+			} else {
+				isUsingManhattanHeuristic = false;
+				isUsingMisplacedHeuristic = false;
+			}
+
+			if (selItems.get(1).toString().contains("Greedy")) {
+				isGreedyBestFirst = true;
+			} else {
+				isGreedyBestFirst = false;
+			}
+
 			EightPuzzleBoard board = null;
 			switch (selState.getIndex(EightPuzzleFrame.ENV_SEL)) {
 			case 0: // three moves
@@ -390,7 +596,7 @@ public class EightPuzzleApp extends SimpleAgentApp {
 		public void calculateManhattanHeuristic() {
 			int retVal = 0;
 			int currentVal = 0;
-
+			stateInfoView.resetViewBorderToInitial();
 			Border borderCurrent = BorderFactory.createLineBorder(Color.RED,10);
 			Border borderTarget = BorderFactory.createLineBorder(Color.GREEN,10);
 			Border originalBorder = stateInfoView.squareButtons[0].getBorder();
@@ -439,8 +645,10 @@ public class EightPuzzleApp extends SimpleAgentApp {
 		@Override
 		public void calculateMistiledHeuristic() {
 			int retVal = 0;
+			stateInfoView.resetViewBorderToInitial();
 			Border borderMistiled = BorderFactory.createLineBorder(Color.RED,10);
 			Border borderRightTiled = BorderFactory.createLineBorder(Color.GREEN,10);
+			Border originalBorder = stateInfoView.squareButtons[0].getBorder();
 			for (int i = 0; i < 9; i++) {
 				switch (stateInfoView.vals[i]) {
 					case 1:
@@ -556,8 +764,19 @@ public class EightPuzzleApp extends SimpleAgentApp {
 		int[] vals;
 
 		EightPuzzleStateInfoView() {
+			removeAll();
+			Font f = new java.awt.Font(Font.SANS_SERIF, Font.PLAIN, 32);
+			setLayout(new GridLayout(3,3));
+			for (int i = 0; i < 9; i++) {
+				JButton square = new JButton(Integer.toString(i));
+				square.setFont(f);
+				square.addActionListener(this);
+				squareButtons[i] = square;
+				add(square);
+			}
 			vals = new int[9];
 		}
+
 		@Override
 		public void actionPerformed(ActionEvent ae) {
 		}
@@ -568,6 +787,15 @@ public class EightPuzzleApp extends SimpleAgentApp {
 				squareButtons[i].setText(view.squareButtons[i].getText());
 				if (text == "") vals[i] = 0;
 				else vals[i] = Integer.parseInt(text);
+			}
+			resetViewBorderToInitial();
+		}
+
+
+		public void resetViewBorderToInitial() {
+			Border defaultBorder = UIManager.getBorder("Button.border");
+			for (int i = 0; i < 9; i++) {
+				squareButtons[i].setBorder(defaultBorder);
 			}
 		}
 	}
